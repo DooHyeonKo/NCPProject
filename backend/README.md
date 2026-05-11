@@ -139,8 +139,5 @@ pytest
 
 ## 향후 개선 사항
 
-- CLOVA Studio 튜닝 API를 활용한 개인화 모델 학습
-- Object Storage 기반 학습 데이터셋 관리
-- 학습 상태 조회 및 관리 기능
-- 튜닝 모델 기반 문서 질의응답 고도화
-- FAISS, Qdrant, Pinecone 같은 벡터 DB 연동
+- 도커 스크립트 작성
+- 토큰 사용량 최적화
