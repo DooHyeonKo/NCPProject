@@ -88,6 +88,15 @@ POST /api/v1/documents/{document_id}/translation/selected
 
 프로젝트의 UI/UX 설계를 위해 다음과 같은 디자인 과정을 거쳤습니다.
 
+### 디자인 스크린샷
+<p align="center">
+  <img src="public/design/design1.png" width="45%" />
+  <img src="public/design/design2.png" width="45%" />
+  <img src="public/design/design3.png" width="45%" />
+  <img src="public/design/design4.png" width="45%" />
+  <img src="public/design/design5.png" width="90%" />
+</p>
+
 - **와이어프레임 및 레이아웃 설계**: 대시보드, 문서 뷰어, 채팅 인터페이스의 배치 및 사용자 흐름 정의
 - **프로토타이핑**: 실제 사용 사례를 기반으로 한 기능 동작 확인
 - **주요 화면 설계**:
