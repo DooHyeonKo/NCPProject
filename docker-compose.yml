@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ncp-backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/app.db:/app/app.db
+    env_file:
+      - ./backend/.env
+    networks:
+      - atoz-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ncp-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./frontend/.env.local
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://backend:8000/api/v1
+    depends_on:
+      - backend
+    networks:
+      - atoz-network
+
+networks:
+  atoz-network:
+    driver: bridge
