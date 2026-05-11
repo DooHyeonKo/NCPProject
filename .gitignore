@@ -7,6 +7,8 @@ frontend/node_modules/
 # Build outputs
 .next/
 frontend/.next/
+.next.bak*/
+frontend/.next.bak*/
 frontend/out/
 frontend/tsconfig.tsbuildinfo
 dist/
