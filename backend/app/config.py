@@ -1,32 +1,37 @@
 from functools import lru_cache
 from typing import List
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Database
     DATABASE_URL: str = "sqlite:///./app.db"
-    JWT_SECRET_KEY: str = "[**REDACTED**]"
+
+    # Security
+    JWT_SECRET_KEY: str = "change-this-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 14
 
+    # Clova Studio API
     CLOVA_STUDIO_API_KEY: str = ""
     CLOVA_STUDIO_BASE_URL: str = "https://clovastudio.stream.ntruss.com/v1/openai"
     CLOVA_CHAT_MODEL: str = "HCX-005"
     CLOVA_EMBEDDING_MODEL: str = "bge-m3"
 
-    UPLOAD_DIR: str = "uploads"
+    # File Uploads
     MAX_UPLOAD_SIZE_MB: int = 40
     FRONTEND_ORIGIN: str = "http://localhost:3000"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # NCP Object Storage
+    NCP_OBJECT_STORAGE_ENDPOINT: str = "https://kr.object.ncloudstorage.com"
+    NCP_OBJECT_STORAGE_REGION: str = "kr-standard"
+    NCP_OBJECT_STORAGE_ACCESS_KEY: str = ""
+    NCP_OBJECT_STORAGE_SECRET_KEY: str = ""
+    NCP_OBJECT_STORAGE_BUCKET: str = "atoz-upload-bucket"
 
-    @field_validator("UPLOAD_DIR")
-    @classmethod
-    def normalize_upload_dir(cls, value: str) -> str:
-        return value.strip() or "uploads"
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def cors_origins(self) -> List[str]:

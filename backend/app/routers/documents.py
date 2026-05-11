@@ -1,8 +1,8 @@
 import logging
-from mimetypes import guess_type
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
@@ -49,8 +49,8 @@ from app.services.document_service import (
     serialize_summary,
     serialize_translation,
 )
+from app.services.object_storage import delete_object, get_object_stream
 from app.services.recommendation_service import recommend_similar_documents
-from app.utils.file_utils import delete_file_safely
 from app.utils.json_utils import loads_list
 
 logger = logging.getLogger(__name__)
@@ -125,16 +125,34 @@ def get_document(
 @router.get("/{document_id}/file")
 def get_document_file(
     document_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     document = get_document_for_access(db, document_id, current_user)
-    media_type = guess_type(document.original_filename)[0] or "application/octet-stream"
-    return FileResponse(
-        path=document.file_path,
-        media_type=media_type,
-        filename=document.original_filename,
-        content_disposition_type="inline",
+    object_stream = get_object_stream(document.file_path, request.headers.get("range"))
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(object_stream.content_length),
+        "Content-Disposition": (
+            f'inline; filename="{quote(document.original_filename)}"; '
+            f"filename*=UTF-8''{quote(document.original_filename)}"
+        ),
+    }
+    if object_stream.content_range:
+        headers["Content-Range"] = object_stream.content_range
+
+    def stream_file():
+        try:
+            yield from object_stream.body.iter_chunks(chunk_size=1024 * 1024)
+        finally:
+            object_stream.body.close()
+
+    return StreamingResponse(
+        stream_file(),
+        status_code=object_stream.status_code,
+        media_type=object_stream.content_type,
+        headers=headers,
     )
 
 
@@ -145,11 +163,15 @@ def delete_document(
     db: Session = Depends(get_db),
 ):
     document = get_document_for_owner(db, document_id, current_user)
-    file_path = document.file_path
+    object_key = document.file_path
+
     db.delete(document)
     db.commit()
-    delete_file_safely(file_path)
-    logger.info("문서 삭제: user=%s document=%s", current_user.id, document_id)
+
+    delete_object(object_key)
+    logger.info("Object Storage 파일 삭제 요청: user=%s document=%s key=%s", current_user.id, document_id, object_key)
+
+    logger.info("문서 삭제 완료: user=%s document=%s", current_user.id, document_id)
     return {"message": "문서가 삭제되었습니다."}
 
 

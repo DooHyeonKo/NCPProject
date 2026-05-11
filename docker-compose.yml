@@ -5,33 +5,59 @@ services:
       dockerfile: Dockerfile
     container_name: ncp-backend
     restart: always
+    env_file:
+      - ./.env
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend/uploads:/app/uploads
-      - ./backend/app.db:/app/app.db
-    env_file:
-      - ./backend/.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-14}
+      CLOVA_STUDIO_API_KEY: ${CLOVA_STUDIO_API_KEY}
+      CLOVA_STUDIO_BASE_URL: ${CLOVA_STUDIO_BASE_URL:-https://clovastudio.stream.ntruss.com/v1/openai}
+      CLOVA_CHAT_MODEL: ${CLOVA_CHAT_MODEL:-HCX-005}
+      CLOVA_EMBEDDING_MODEL: ${CLOVA_EMBEDDING_MODEL:-bge-m3}
+      MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-40}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
+      NCP_OBJECT_STORAGE_ENDPOINT: ${NCP_OBJECT_STORAGE_ENDPOINT:-https://kr.object.ncloudstorage.com}
+      NCP_OBJECT_STORAGE_REGION: ${NCP_OBJECT_STORAGE_REGION:-kr-standard}
+      NCP_OBJECT_STORAGE_ACCESS_KEY: ${NCP_OBJECT_STORAGE_ACCESS_KEY}
+      NCP_OBJECT_STORAGE_SECRET_KEY: ${NCP_OBJECT_STORAGE_SECRET_KEY}
+      NCP_OBJECT_STORAGE_BUCKET: ${NCP_OBJECT_STORAGE_BUCKET:-atoz-upload-bucket}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     networks:
-      - atoz-network
+      - app-tier
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_BACKEND_HEALTH_URL: ${NEXT_PUBLIC_BACKEND_HEALTH_URL}
     container_name: ncp-frontend
     restart: always
     ports:
       - "3000:3000"
-    env_file:
-      - ./frontend/.env.local
     environment:
-      - NEXT_PUBLIC_API_BASE_URL=http://backend:8000/api/v1
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      NEXT_PUBLIC_BACKEND_HEALTH_URL: ${NEXT_PUBLIC_BACKEND_HEALTH_URL}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
-      - atoz-network
+      - web-tier
+      - app-tier
 
 networks:
-  atoz-network:
+  web-tier:
+    driver: bridge
+  app-tier:
     driver: bridge

@@ -12,9 +12,10 @@ from app.config import settings
 from app.models import ChatMessage, Document, Note, Summary, Translation, User
 from app.services.clova_service import clova_chat, clova_embedding
 from app.services.metadata_service import extract_metadata
-from app.utils.file_utils import build_storage_path, delete_file_safely, validate_upload_file
+from app.services.object_storage import delete_object, upload_object
+from app.utils.file_utils import build_object_key, validate_upload_file
 from app.utils.json_utils import dumps_json, loads_list
-from app.utils.text_extract import extract_text
+from app.utils.text_extract import extract_text_from_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -289,14 +290,17 @@ def generate_embedding(text: str) -> List[float]:
     return embedding if embedding else fallback_embedding(text)
 
 
-def save_upload_file(upload_file: UploadFile) -> tuple[str, str, int]:
+def save_upload_file(upload_file: UploadFile, user_id: int) -> tuple[str, str, int, bytes]:
     content = upload_file.file.read()
     file_size = len(content)
     file_type = validate_upload_file(upload_file, file_size)
-    stored_filename, file_path = build_storage_path(upload_file.filename or "document")
-    Path(file_path).write_bytes(content)
+    object_key = build_object_key(upload_file.filename or "document", user_id=user_id)
+
+    upload_object(object_key, content, upload_file.content_type)
+    logger.info("Object Storage 파일 업로드: key=%s", object_key)
+
     upload_file.file.seek(0)
-    return file_type, str(file_path), file_size
+    return file_type, object_key, file_size, content
 
 
 def create_document(
@@ -306,20 +310,21 @@ def create_document(
     title: Optional[str],
     is_public: bool,
 ) -> Document:
-    file_type, file_path, file_size = save_upload_file(upload_file)
+    file_type, object_key, file_size, content = save_upload_file(upload_file, current_user.id)
+    stored_filename = Path(object_key).name
 
     try:
-        original_text = extract_text(file_path, file_type)
+        original_text = extract_text_from_bytes(content, file_type)
     except Exception as exc:
-        delete_file_safely(file_path)
+        delete_object(object_key)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="문서 텍스트 추출에 실패했습니다.") from exc
 
     document = Document(
         user_id=current_user.id,
         title=title or Path(upload_file.filename or "").stem,
         original_filename=upload_file.filename or "document",
-        stored_filename=Path(file_path).name,
-        file_path=file_path,
+        stored_filename=stored_filename,
+        file_path=object_key,
         file_type=file_type,
         file_size=file_size,
         original_text=original_text,
@@ -327,8 +332,13 @@ def create_document(
         status="UPLOADED",
     )
     db.add(document)
-    db.commit()
-    db.refresh(document)
+    try:
+        db.commit()
+        db.refresh(document)
+    except Exception:
+        db.rollback()
+        delete_object(object_key)
+        raise
 
     # Upload success should not fail if metadata/embedding generation fails.
     try:

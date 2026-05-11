@@ -16,3 +16,4 @@ python-docx
 pytest
 httpx
 email-validator
+boto3==1.28.0
